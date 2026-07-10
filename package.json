@@ -1,0 +1,26 @@
+{
+  "name": "hyperdims",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Hyperdimensional Coordinate System (HCS) visualization app",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "lil-gui": "^0.21.0",
+    "papaparse": "^5.5.4",
+    "three": "^0.185.1"
+  },
+  "devDependencies": {
+    "@types/papaparse": "^5.5.2",
+    "@types/three": "^0.185.1",
+    "puppeteer-core": "^25.3.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.1.4",
+    "vitest": "^4.1.10"
+  }
+}

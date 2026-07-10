@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hyperdims — HCS Plotter</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%236688ff' stroke-width='3'/%3E%3Ccircle cx='29' cy='16' r='6' fill='none' stroke='%23ff4444' stroke-width='2'/%3E%3C/svg%3E"
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #000;
+        font-family: system-ui, sans-serif;
+      }
+      #app {
+        position: fixed;
+        inset: 0;
+      }
+      #title {
+        position: fixed;
+        left: 12px;
+        top: 10px;
+        color: #8899cc;
+        font-size: 13px;
+        letter-spacing: 0.08em;
+        pointer-events: none;
+        user-select: none;
+      }
+      #title b {
+        color: #ccd6ff;
+      }
+      #tooltip {
+        position: fixed;
+        display: none;
+        background: rgba(10, 14, 30, 0.92);
+        color: #dde4ff;
+        border: 1px solid #334;
+        border-radius: 4px;
+        padding: 6px 9px;
+        font-size: 12px;
+        line-height: 1.5;
+        pointer-events: none;
+        z-index: 10;
+        max-width: 340px;
+        white-space: pre;
+      }
+      #drophint {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(20, 40, 90, 0.35);
+        color: #cfe0ff;
+        font-size: 22px;
+        pointer-events: none;
+        z-index: 20;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="title"><b>HYPERDIMS</b> · hyperdimensional coordinate system · drop a CSV anywhere to plot it</div>
+    <div id="tooltip"></div>
+    <div id="drophint">Drop CSV to import</div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
