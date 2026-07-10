@@ -29,8 +29,14 @@ Unlike the original ANTz pipeline, dimensions are pure math here, not scene obje
 
 ```
 npm install
-npm run dev        # open the printed localhost URL
+npm run dev        # open the printed localhost URL (usually http://localhost:5173)
 ```
+
+Note: opening the source `index.html` directly from disk will NOT work — it
+loads TypeScript that the dev server compiles on the fly. To get a
+double-clickable version, run `npm run build`: it produces a single
+self-contained `dist/index.html` (all code inlined) that runs from anywhere,
+no server needed.
 
 - Pick a built-in demo (sine, tangent-through-infinity, logistic chaos, Lissajous…)
   or **drop any CSV onto the window**. Ready-made examples live in
