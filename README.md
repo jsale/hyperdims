@@ -33,7 +33,9 @@ npm run dev        # open the printed localhost URL
 ```
 
 - Pick a built-in demo (sine, tangent-through-infinity, logistic chaos, Lissajous…)
-  or **drop any CSV onto the window**.
+  or **drop any CSV onto the window**. Ready-made examples live in
+  [`samples/`](samples/README.md): real 7-channel EEG data (columns mode) and a
+  tangent series with literal `Infinity` values (embed mode).
 - CSV modes: `columns` (each numeric column is a dimension — e.g. multichannel EEG)
   or `embed` (lag-embed one column into n dimensions, phase-portrait style).
 - Hover a point for its original values and mapped angles; click it to move the

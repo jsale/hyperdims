@@ -1,8 +1,13 @@
 import puppeteer from 'puppeteer-core';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const SHOT_DIR = 'C:/Users/jsale/AppData/Local/Temp/claude/c--Users-jsale-source-repos-hyperdims/ae00071b-26ff-431a-90ea-3b1c8ba94047/scratchpad';
-const EEG = readFileSync('c:/xampp/htdocs/antz/toroids/math/hyperdims/o1o2p8p4pzp3p7.csv', 'utf8');
+const repo = dirname(dirname(fileURLToPath(import.meta.url)));
+const SHOT_DIR = process.env.SHOT_DIR ?? join(repo, 'shots');
+mkdirSync(SHOT_DIR, { recursive: true });
+const EEG = readFileSync(join(repo, 'samples', 'eeg_7ch.csv'), 'utf8');
+const TANGENT = readFileSync(join(repo, 'samples', 'tangent.csv'), 'utf8');
 
 const browser = await puppeteer.launch({
   executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
@@ -71,9 +76,9 @@ const fps = await page.evaluate(
 );
 console.log(`FPS with 10k points x 7 dims: ${fps.toFixed(1)}`);
 
-// Probe: drop the real 47k-row EEG CSV onto the window
+// Probe: drop the sample EEG CSV (2000 rows x 7 channels) onto the window
 await page.evaluate((csvText) => {
-  const file = new File([csvText], 'o1o2p8p4pzp3p7.csv', { type: 'text/csv' });
+  const file = new File([csvText], 'eeg_7ch.csv', { type: 'text/csv' });
   const dt = new DataTransfer();
   dt.items.add(file);
   window.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
@@ -84,16 +89,29 @@ console.log('shot 5: EEG CSV (7 channels) dropped');
 
 // Probe: hover for tooltip — sweep pointer across the middle of the canvas
 let tooltipText = '';
-for (let x = 500; x <= 1100 && !tooltipText; x += 20) {
-  await page.mouse.move(x, 500);
-  await new Promise((r) => setTimeout(r, 60));
-  tooltipText = await page.evaluate(() => {
-    const t = document.getElementById('tooltip');
-    return t.style.display !== 'none' ? t.textContent : '';
-  });
+outer: for (const y of [400, 480, 560, 640]) {
+  for (let x = 400; x <= 1200; x += 10) {
+    await page.mouse.move(x, y);
+    await new Promise((r) => setTimeout(r, 40));
+    tooltipText = await page.evaluate(() => {
+      const t = document.getElementById('tooltip');
+      return t.style.display !== 'none' ? t.textContent : '';
+    });
+    if (tooltipText) break outer;
+  }
 }
 console.log('tooltip:', tooltipText ? JSON.stringify(tooltipText.slice(0, 200)) : '(no point hit on sweep)');
 await page.screenshot({ path: `${SHOT_DIR}/06_tooltip.png` });
+
+// Probe: tangent sample with literal Infinity cells, lag-embedded to 3 dims
+const infinityCheck = await page.evaluate((csvText) => {
+  window.hyperdims.loadCSVText(csvText, 'tangent.csv');
+  window.hyperdims.set({ csvMode: 'embed', csvColumn: 0, dims: 3, lag: 20, numPoints: 1400 });
+  return { hasInfinity: csvText.includes('Infinity') };
+}, TANGENT);
+await new Promise((r) => setTimeout(r, 2000));
+await page.screenshot({ path: `${SHOT_DIR}/07_tangent_csv_embed.png` });
+console.log('shot 7: tangent.csv embed mode, Infinity cells present:', infinityCheck.hasInfinity);
 
 // Probe: empty/garbage CSV drop — should not crash
 await page.evaluate(() => {
