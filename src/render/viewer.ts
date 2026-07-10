@@ -18,6 +18,8 @@ export class HCSViewer {
   private scene = new THREE.Scene();
   private camera: THREE.PerspectiveCamera;
   private controls: OrbitControls;
+  private stereo = new THREE.StereoCamera();
+  private stereoEnabled = false;
 
   private points: THREE.InstancedMesh | null = null;
   private line: THREE.Line | null = null;
@@ -53,6 +55,9 @@ export class HCSViewer {
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
 
+    // Scene units are ~hundreds, so a few units of eye separation reads well.
+    this.stereo.eyeSep = 5;
+
     const ambient = new THREE.AmbientLight(0xffffff, 0.6);
     const dir = new THREE.DirectionalLight(0xffffff, 1.4);
     dir.position.set(200, 400, 250);
@@ -67,9 +72,48 @@ export class HCSViewer {
     const animate = () => {
       requestAnimationFrame(animate);
       this.controls.update();
-      this.renderer.render(this.scene, this.camera);
+      this.renderFrame();
     };
     animate();
+  }
+
+  /** Render once — normal, or side-by-side stereo when enabled. */
+  private renderFrame(): void {
+    if (!this.stereoEnabled) {
+      this.renderer.render(this.scene, this.camera);
+      return;
+    }
+    // Cross-eyed stereo (GlyphViz-style): the RIGHT eye's view is drawn on
+    // the LEFT half and vice versa, so crossing your eyes fuses the image.
+    this.scene.updateMatrixWorld();
+    this.camera.updateMatrixWorld();
+    this.stereo.update(this.camera);
+    const size = this.renderer.getSize(new THREE.Vector2());
+    const w = Math.floor(size.x / 2);
+    const h = size.y;
+    this.renderer.setScissorTest(true);
+    this.renderer.setScissor(0, 0, w, h);
+    this.renderer.setViewport(0, 0, w, h);
+    this.renderer.render(this.scene, this.stereo.cameraR);
+    this.renderer.setScissor(w, 0, size.x - w, h);
+    this.renderer.setViewport(w, 0, size.x - w, h);
+    this.renderer.render(this.scene, this.stereo.cameraL);
+    this.renderer.setScissorTest(false);
+    this.renderer.setViewport(0, 0, size.x, size.y);
+  }
+
+  /** Toggle cross-eyed side-by-side stereo. */
+  setStereo(enabled: boolean): void {
+    this.stereoEnabled = enabled;
+  }
+
+  /** Eye separation in world units (scene scale ≈ hundreds, so try 2–10). */
+  setEyeSeparation(sep: number): void {
+    this.stereo.eyeSep = sep;
+  }
+
+  get stereoActive(): boolean {
+    return this.stereoEnabled;
   }
 
   /** Replace the plotted dataset. Colors follow time order (rainbow),
@@ -220,20 +264,36 @@ export class HCSViewer {
     return new THREE.LineLoop(geo, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.8 }));
   }
 
-  /** Row index under the pointer, or null. */
+  /** Row index under the pointer, or null. Stereo-aware: picks within
+   * whichever half the pointer is in, using that half's eye camera. */
   pickRow(event: PointerEvent): number | null {
     if (!this.points) return null;
     const rect = this.renderer.domElement.getBoundingClientRect();
-    this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-    this.raycaster.setFromCamera(this.pointer, this.camera);
+    const fx = (event.clientX - rect.left) / rect.width;
+    const fy = (event.clientY - rect.top) / rect.height;
+    let camera: THREE.Camera = this.camera;
+    if (this.stereoEnabled) {
+      this.stereo.update(this.camera);
+      // Cross-eyed layout: left half shows the right eye, right half the left.
+      const inLeftHalf = fx < 0.5;
+      const eye = inLeftHalf ? this.stereo.cameraR : this.stereo.cameraL;
+      // StereoCamera.update writes projectionMatrix directly; raycasting
+      // unprojects via projectionMatrixInverse, so sync it here.
+      eye.projectionMatrixInverse.copy(eye.projectionMatrix).invert();
+      camera = eye;
+      this.pointer.x = (inLeftHalf ? fx / 0.5 : (fx - 0.5) / 0.5) * 2 - 1;
+    } else {
+      this.pointer.x = fx * 2 - 1;
+    }
+    this.pointer.y = -fy * 2 + 1;
+    this.raycaster.setFromCamera(this.pointer, camera as THREE.PerspectiveCamera);
     const hits = this.raycaster.intersectObject(this.points, false);
     const id = hits[0]?.instanceId;
     return id === undefined ? null : id;
   }
 
   screenshotDataURL(): string {
-    this.renderer.render(this.scene, this.camera);
+    this.renderFrame();
     return this.renderer.domElement.toDataURL('image/png');
   }
 }

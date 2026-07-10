@@ -4,6 +4,8 @@ import { computePositions, type HCSConfig } from './hcs/geometry';
 import { medianAbs, valueToAngle } from './hcs/mapping';
 import { DEMO_NAMES, generateDemo, type Dataset, type DemoName } from './data/demos';
 import { parseCSVText, datasetFromColumns, datasetFromEmbedding, type ParsedCSV } from './data/csv';
+import { buildGlyphVizFiles, fileBaseName } from './export/glyphviz';
+import { buildZip, type ZipEntry } from './export/zip';
 
 const container = document.getElementById('app')!;
 const tooltip = document.getElementById('tooltip')!;
@@ -27,6 +29,11 @@ interface State {
   probeIndex: number;
   play: boolean;
   speed: number;
+  stereo: boolean;
+  eyeSeparation: number;
+  exportHideDims: boolean;
+  exportChannels: boolean;
+  exportTags: boolean;
 }
 
 const state: State = {
@@ -46,6 +53,11 @@ const state: State = {
   probeIndex: 0,
   play: false,
   speed: 200,
+  stereo: false,
+  eyeSeparation: 5,
+  exportHideDims: true,
+  exportChannels: true,
+  exportTags: true,
 };
 
 let csv: ParsedCSV | null = null;
@@ -87,6 +99,8 @@ function regenerate(): void {
   viewer.setData(positions, valid);
   viewer.setPointSize(state.pointSize);
   viewer.setLineVisible(state.showLine);
+  viewer.setStereo(state.stereo);
+  viewer.setEyeSeparation(state.eyeSeparation);
   playhead = viewer.totalRows;
   probeCtrl.max(Math.max(0, viewer.totalRows - 1));
   state.probeIndex = Math.min(state.probeIndex, Math.max(0, viewer.totalRows - 1));
@@ -133,6 +147,11 @@ displayFolder.add(state, 'pointSize', 0.1, 10).name('point size').onChange((v: n
 displayFolder.add(state, 'showLine').name('trajectory line').onChange((v: boolean) => viewer.setLineVisible(v));
 displayFolder.add(state, 'showGuides').name('dimension circles').onChange(updateGuides);
 const probeCtrl = displayFolder.add(state, 'probeIndex', 0, 0, 1).name('probe point').onChange(updateGuides);
+displayFolder.add(state, 'stereo').name('3D stereo (cross-eyed)').onChange((v: boolean) => viewer.setStereo(v));
+displayFolder
+  .add(state, 'eyeSeparation', 0.1, 30)
+  .name('eye separation')
+  .onChange((v: number) => viewer.setEyeSeparation(v));
 
 const animFolder = gui.addFolder('Animation');
 animFolder.add(state, 'play').name('play');
@@ -141,7 +160,12 @@ animFolder
   .add({ restart: () => (playhead = 0) }, 'restart')
   .name('restart');
 
-gui.add({ screenshot: saveScreenshot }, 'screenshot').name('save screenshot');
+const exportFolder = gui.addFolder('Export');
+exportFolder.add(state, 'exportHideDims').name('hide dimension glyphs');
+exportFolder.add(state, 'exportChannels').name('animation channels');
+exportFolder.add(state, 'exportTags').name('tag every point');
+exportFolder.add({ exportGV: exportGlyphViz }, 'exportGV').name('export GlyphViz ZIP');
+exportFolder.add({ screenshot: saveScreenshot }, 'screenshot').name('save screenshot');
 
 // ---------------------------------------------------------------- CSV load
 
@@ -222,6 +246,41 @@ function saveScreenshot(): void {
   a.click();
 }
 
+/** Export the current plot as a GlyphViz CSV set, zipped. The node file
+ * reproduces the on-screen HCS exactly (same angles, scales, colors). */
+function exportGlyphViz(): void {
+  const datasetName = state.source === 'CSV' ? csvName : state.source;
+  const files = buildGlyphVizFiles(dataset, cfg, datasetName, {
+    hideDimensions: state.exportHideDims,
+    includeChannels: state.exportChannels,
+    tagPoints: state.exportTags,
+  });
+  if (files.rowsExported === 0) {
+    alert('Nothing to export — the current dataset has no plottable rows.');
+    return;
+  }
+  const base = fileBaseName(datasetName);
+  const entries: ZipEntry[] = [
+    { name: `${base}_gv_node.csv`, text: files.node },
+    { name: `${base}_gv_tag.csv`, text: files.tag },
+  ];
+  if (state.exportChannels && files.chTracks) {
+    entries.push({ name: `${base}_gv_ch-map.csv`, text: files.chMap });
+    entries.push({ name: `${base}_gv_ch-tracks.csv`, text: files.chTracks });
+  }
+  const zip = buildZip(entries);
+  const blob = new Blob([zip.buffer as ArrayBuffer], { type: 'application/zip' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${base}_gv.zip`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  console.log(
+    `GlyphViz export: ${files.rowsExported} rows, ${files.nodeCount} nodes → ${a.download} (${zip.length} bytes)`,
+  );
+}
+
 // ---------------------------------------------------------------- Animation
 
 let lastTime = performance.now();
@@ -245,11 +304,21 @@ regenerate();
 // app programmatically, e.g. hyperdims.set({ dims: 7, numPoints: 10000 }).
 declare global {
   interface Window {
-    hyperdims: { state: State; set: (patch: Partial<State>) => void; loadCSVText: (text: string, name: string) => void };
+    hyperdims: {
+      state: State;
+      set: (patch: Partial<State>) => void;
+      loadCSVText: (text: string, name: string) => void;
+      exportGlyphViz: () => void;
+      /** Build (without downloading) the GlyphViz CSVs for the current plot. */
+      buildGlyphViz: (opts?: Parameters<typeof buildGlyphVizFiles>[3]) => ReturnType<typeof buildGlyphVizFiles>;
+    };
   }
 }
 window.hyperdims = {
   state,
+  exportGlyphViz,
+  buildGlyphViz: (opts) =>
+    buildGlyphVizFiles(dataset, cfg, state.source === 'CSV' ? csvName : state.source, opts),
   set(patch: Partial<State>) {
     Object.assign(state, patch);
     gui.controllersRecursive().forEach((c) => c.updateDisplay());

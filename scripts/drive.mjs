@@ -113,6 +113,36 @@ await new Promise((r) => setTimeout(r, 2000));
 await page.screenshot({ path: `${SHOT_DIR}/07_tangent_csv_embed.png` });
 console.log('shot 7: tangent.csv embed mode, Infinity cells present:', infinityCheck.hasInfinity);
 
+// Probe: 3D stereo cross-eyed mode — two side-by-side views
+await page.evaluate(() => window.hyperdims.set({ stereo: true }));
+await new Promise((r) => setTimeout(r, 800));
+await page.screenshot({ path: `${SHOT_DIR}/08_stereo_crosseyed.png` });
+console.log('shot 8: stereo cross-eyed mode');
+await page.evaluate(() => window.hyperdims.set({ stereo: false }));
+
+// Probe: GlyphViz export — build the CSVs in-page and sanity check them
+const gv = await page.evaluate(() => {
+  const files = window.hyperdims.buildGlyphViz();
+  return {
+    rows: files.rowsExported,
+    nodes: files.nodeCount,
+    nodeHeader: files.node.split('\n')[0],
+    nodeLine1: files.node.split('\n')[1],
+    tagHeader: files.tag.split('\n')[0],
+    trackHeader: files.chTracks.split('\n')[0],
+    nodeLines: files.node.trim().split('\n').length,
+  };
+});
+const dims = 3;
+const expectedNodes = 1 + gv.rows * (dims + 1) + (dims + 1);
+console.log(
+  `GlyphViz export: ${gv.rows} rows -> ${gv.nodes} nodes (expected ${expectedNodes}: ${gv.nodes === expectedNodes ? 'OK' : 'MISMATCH'})`,
+);
+console.log('  node header ok:', gv.nodeHeader.startsWith('id,type,parent_id,branch_level,translate_x'));
+console.log('  tag header ok:', gv.tagHeader === 'id,table_id,record_id,title');
+console.log('  track header ok:', gv.trackHeader.startsWith('cyclecount,ch0'));
+console.log('  first node:', gv.nodeLine1);
+
 // Probe: empty/garbage CSV drop — should not crash
 await page.evaluate(() => {
   const file = new File(['not,a\nvalid file,"x'], 'garbage.csv', { type: 'text/csv' });
