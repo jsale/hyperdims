@@ -57,6 +57,10 @@ export class HCSViewer {
 
     // Scene units are ~hundreds, so a few units of eye separation reads well.
     this.stereo.eyeSep = 5;
+    // Each eye renders into a half-width viewport, but StereoCamera derives
+    // its projections from the full-window camera.aspect × this factor —
+    // without the 0.5 the stereo halves are squished 2:1 horizontally.
+    this.stereo.aspect = 0.5;
 
     const ambient = new THREE.AmbientLight(0xffffff, 0.6);
     const dir = new THREE.DirectionalLight(0xffffff, 1.4);
@@ -87,7 +91,7 @@ export class HCSViewer {
     // the LEFT half and vice versa, so crossing your eyes fuses the image.
     this.scene.updateMatrixWorld();
     this.camera.updateMatrixWorld();
-    this.stereo.update(this.camera);
+    this.updateStereo();
     const size = this.renderer.getSize(new THREE.Vector2());
     const w = Math.floor(size.x / 2);
     const h = size.y;
@@ -100,6 +104,15 @@ export class HCSViewer {
     this.renderer.render(this.scene, this.stereo.cameraL);
     this.renderer.setScissorTest(false);
     this.renderer.setViewport(0, 0, size.x, size.y);
+  }
+
+  /** Recompute the eye cameras, converging on the orbit target. StereoCamera
+   * converges at camera.focus (default 10, far too close for this scene's
+   * ~hundreds-of-units distances), which made the two half-images drift
+   * apart as eyeSep grew. Focusing at the target keeps them overlapped. */
+  private updateStereo(): void {
+    this.camera.focus = this.camera.position.distanceTo(this.controls.target);
+    this.stereo.update(this.camera);
   }
 
   /** Toggle cross-eyed side-by-side stereo. */
@@ -273,7 +286,7 @@ export class HCSViewer {
     const fy = (event.clientY - rect.top) / rect.height;
     let camera: THREE.Camera = this.camera;
     if (this.stereoEnabled) {
-      this.stereo.update(this.camera);
+      this.updateStereo();
       // Cross-eyed layout: left half shows the right eye, right half the left.
       const inLeftHalf = fx < 0.5;
       const eye = inLeftHalf ? this.stereo.cameraR : this.stereo.cameraL;

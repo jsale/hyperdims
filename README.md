@@ -38,7 +38,8 @@ double-clickable version, run `npm run build`: it produces a single
 self-contained `dist/index.html` (all code inlined) that runs from anywhere,
 no server needed.
 
-- Pick a built-in demo (sine, tangent-through-infinity, logistic chaos, Lissajous…)
+- Pick a built-in demo (sine, tangent-through-infinity, logistic chaos, the
+  dopamine bifurcation map that blows up through ±∞ mid-ramp, Lissajous…)
   or **drop any CSV onto the window**. Ready-made examples live in
   [`samples/`](samples/README.md): real 7-channel EEG data (columns mode) and a
   tangent series with literal `Infinity` values (embed mode).
