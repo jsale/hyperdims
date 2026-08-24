@@ -34,6 +34,27 @@
       #title b {
         color: #ccd6ff;
       }
+      /* Sits just under the title. #title is pointer-events:none so it never
+         eats orbit drags, hence this is a sibling rather than a child link. */
+      #aboutlink {
+        position: fixed;
+        left: 12px;
+        top: 34px;
+        color: #cfe0ff;
+        text-decoration: none;
+        font-size: 12px;
+        letter-spacing: 0.06em;
+        border: 1px solid #2b3a6b;
+        border-radius: 4px;
+        padding: 4px 11px;
+        background: rgba(40, 70, 160, 0.28);
+        z-index: 15;
+      }
+      #aboutlink:hover {
+        background: rgba(60, 100, 220, 0.45);
+        border-color: #6688ff;
+        color: #fff;
+      }
       #tooltip {
         position: fixed;
         display: none;
@@ -66,6 +87,7 @@
   <body>
     <div id="app"></div>
     <div id="title"><b>HYPERDIMS</b> · hyperdimensional coordinate system · drop a CSV anywhere to plot it</div>
+    <a id="aboutlink" href="about.html" target="_blank" rel="noopener">About Hyperdims — what is the HCS? →</a>
     <div id="tooltip"></div>
     <div id="drophint">Drop CSV to import</div>
     <script type="module" src="/src/main.ts"></script>
