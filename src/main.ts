@@ -1,6 +1,6 @@
 import GUI from 'lil-gui';
 import { HCSViewer } from './render/viewer';
-import { computePositions, type HCSConfig } from './hcs/geometry';
+import { computePositions, framesForRow, type HCSConfig } from './hcs/geometry';
 import { medianAbs, valueToAngle } from './hcs/mapping';
 import { DEMO_NAMES, generateDemo, type Dataset, type DemoName } from './data/demos';
 import { parseCSVText, datasetFromColumns, datasetFromEmbedding, type ParsedCSV } from './data/csv';
@@ -283,12 +283,18 @@ function exportGlyphViz(): void {
 
 // ---------------------------------------------------------------- Animation
 
+// Set by scripted video capture (video/render.mjs): the playhead then follows
+// video time instead of the wall clock, so a slow frame can't stutter it.
+let filmPlayhead: number | null = null;
+
 let lastTime = performance.now();
 function tick(now: number): void {
   requestAnimationFrame(tick);
   const dt = (now - lastTime) / 1000;
   lastTime = now;
-  if (state.play && viewer.totalRows > 0) {
+  if (filmPlayhead !== null) {
+    viewer.setVisibleCount(Math.floor(filmPlayhead));
+  } else if (state.play && viewer.totalRows > 0) {
     playhead += state.speed * dt;
     if (playhead > viewer.totalRows) playhead = 0;
     viewer.setVisibleCount(Math.floor(playhead));
@@ -311,12 +317,37 @@ declare global {
       exportGlyphViz: () => void;
       /** Build (without downloading) the GlyphViz CSVs for the current plot. */
       buildGlyphViz: (opts?: Parameters<typeof buildGlyphVizFiles>[3]) => ReturnType<typeof buildGlyphVizFiles>;
+      /** Hooks for scripted video capture (video/render.mjs). */
+      film: {
+        viewer: HCSViewer;
+        gui: GUI;
+        /** Show the first k points (null hands the playhead back to the clock). */
+        setPlayhead: (k: number | null) => void;
+        dataset: () => Dataset;
+        cfg: () => HCSConfig;
+        /** The probe row's dimension circles and the angle chosen on each. */
+        probeChain: () => ReturnType<typeof framesForRow> | null;
+      };
     };
   }
 }
 window.hyperdims = {
   state,
   exportGlyphViz,
+  film: {
+    viewer,
+    gui,
+    setPlayhead(k) {
+      filmPlayhead = k;
+      viewer.setVisibleCount(k === null ? viewer.totalRows : Math.floor(k));
+    },
+    dataset: () => dataset,
+    cfg: () => cfg,
+    probeChain() {
+      const row = dataset.rows[state.probeIndex];
+      return row ? framesForRow(row, cfg) : null;
+    },
+  },
   buildGlyphViz: (opts) =>
     buildGlyphVizFiles(dataset, cfg, state.source === 'CSV' ? csvName : state.source, opts),
   set(patch: Partial<State>) {

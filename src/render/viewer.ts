@@ -305,6 +305,41 @@ export class HCSViewer {
     return id === undefined ? null : id;
   }
 
+  /** Place the camera exactly (no damping), for scripted video capture.
+   * `near` lets a close-up of the deep, tiny dimension circles avoid
+   * near-plane clipping; `shiftX` (CSS px) moves the picture's centre left,
+   * so the scene centres in the space beside the settings panel. */
+  setView(eye: [number, number, number], target: [number, number, number], near = 0.1, shiftX = 0): void {
+    this.camera.position.set(eye[0], eye[1], eye[2]);
+    this.controls.target.set(target[0], target[1], target[2]);
+    this.camera.near = near;
+    this.camera.far = Math.max(100000, near * 1e6);
+    const size = this.renderer.getSize(new THREE.Vector2());
+    if (shiftX) this.camera.setViewOffset(size.x, size.y, shiftX, 0, size.x, size.y);
+    else this.camera.clearViewOffset();
+    this.camera.updateProjectionMatrix();
+    this.controls.update();
+  }
+
+  /** Screen position (CSS px) of a world point in the mono view, or null
+   * when it is behind the camera. */
+  project(p: [number, number, number]): [number, number] | null {
+    this.camera.updateMatrixWorld();
+    const v = new THREE.Vector3(p[0], p[1], p[2]).project(this.camera);
+    if (v.z > 1) return null;
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    return [rect.left + ((v.x + 1) / 2) * rect.width, rect.top + ((1 - v.y) / 2) * rect.height];
+  }
+
+  /** Packed xyz of every row's leaf (rows with NaN are flagged in `valid`). */
+  get leafPositions(): { positions: Float32Array<ArrayBufferLike>; valid: Uint8Array<ArrayBufferLike> } {
+    return { positions: this.positions, valid: this.valid };
+  }
+
+  renderNow(): void {
+    this.renderFrame();
+  }
+
   screenshotDataURL(): string {
     this.renderFrame();
     return this.renderer.domElement.toDataURL('image/png');
